@@ -10,12 +10,14 @@ public class PixxaCanvas : CanvasLayer
     private EntityState state;
     private int width;
     private int height;
-
+    private float aspectRatio;
+    public float AspectRatio => aspectRatio;
 
     public PixxaCanvas(int width, int height, EntityState state, RenderTarget2D canvasRT) 
     {
         this.width = width;
         this.height = height;
+        aspectRatio = width / height;
         this.state = state;
         this.canvasRT = canvasRT;
     }
@@ -40,10 +42,5 @@ public class PixxaCanvas : CanvasLayer
         spriteBatch.End();
         base.PreDraw(scene, spriteBatch);
     }
-    public override void Draw(Scene scene, SpriteBatch spriteBatch)
-    {
-        spriteBatch.Begin(SpriteSortMode.Immediate, BlendState.AlphaBlend, SamplerState.PointClamp);
-        spriteBatch.Draw(canvasRT, new Vector2(width/2, (height/2) - 150), Color.White);
-        spriteBatch.End();
-    }
+    public override void Draw(Scene scene, SpriteBatch spriteBatch) {}
 }

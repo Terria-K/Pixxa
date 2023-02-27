@@ -1,6 +1,5 @@
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Content;
-using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using NLua;
 using Teuria;
@@ -31,18 +30,38 @@ public class Selected : Entity
         base.EnterScene(scene, content);
     }
 
-    public override void Update()
+    public void InputHovering(ToolMode toolMode, Lua luaState) 
     {
         if (state.CurrentTexture != null) 
         {
             var mouseState = Mouse.GetState();
+            var scene = Scene.SceneAs<MainScene>();
+            float currentX = mouseState.X - scene.ViewportPos.X;
+            float currentY = mouseState.Y - scene.ViewportPos.Y;
 
-            Position = Vector2.Transform(
-                new Vector2(mouseState.X - MainScene.Width/2, 
-                (mouseState.Y - MainScene.Height/2) + 150), Matrix.Invert(
-                    Scene.Camera.Transform));
+            var mousePosX = (currentX / (float)scene.ViewportSize.X) * Pixxa.Width;
+            var mousePosY = (currentY / (float)scene.ViewportSize.Y) * Pixxa.Height;
+
+            var mousePos = new Vector2(mousePosX, mousePosY);
+
+            var snappedPosition = Vector2.Transform(
+                new Vector2(mousePos.X, mousePos.Y), 
+                Matrix.Invert(Scene.Camera.Transform)
+            )
+            .Snapped(Vector2.One * 8);
+                
+            Position = snappedPosition;
+
+            if (TInput.Mouse.JustLeftClicked()
+            && toolMode == ToolMode.PencilMode) 
+            {
+                Spawn(Position, luaState);
+            }
+            if (Sprite.Texture != state.CurrentTexture) 
+            {
+                RenewSprite();
+            }
         }
-        base.Update();
     }
 
     public void Spawn(Vector2 pos, Lua lua) 

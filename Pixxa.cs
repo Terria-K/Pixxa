@@ -10,6 +10,9 @@ namespace Pixxa;
 
 public class Pixxa : GameApp
 {
+    public const int AppWidth = 1024;
+    public const int AppHeight = 640;
+    public const float AppAspectRatio = AppWidth / AppHeight;
     public ImGuiRenderer ImGuiRenderer;
     public static GameTime GameTime;
 

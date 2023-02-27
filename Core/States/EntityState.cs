@@ -29,8 +29,23 @@ public class EntityState
         var texturePtr = new EntityTexture() 
         {
             Name = name,
+            ImagePath = new string(path),
             Size = new Num.Vector2(texture.Width, texture.Height),
             Texture = new SpriteTexture(texture),
+            TexturePtr = renderer.BindTexture(texture)
+        };
+        TexturesPtr.Add(texturePtr);
+    }
+
+    public void AddTexture(string name, ReadOnlySpan<char> path, Point pos, Point size) 
+    {
+        var texture = LoadTextureStream(GameApp.Instance.GraphicsDevice, path);
+        var texturePtr = new EntityTexture() 
+        {
+            Name = name,
+            ImagePath = new string(path),
+            Size = new Num.Vector2(size.X, size.Y),
+            Texture = new SpriteTexture(texture, new Point(pos.X, pos.Y), size.X, size.Y),
             TexturePtr = renderer.BindTexture(texture)
         };
         TexturesPtr.Add(texturePtr);
@@ -119,6 +134,7 @@ public class EntityTexture
     public string Name;
     public Num.Vector2 Size;
     public IntPtr TexturePtr;
+    public string ImagePath;
     public SpriteTexture Texture;
     public string ScriptName = "No Script attached";
     public string ScriptPath;

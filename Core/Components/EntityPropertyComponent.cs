@@ -6,7 +6,9 @@ public class EntityPropertyComponent : Component
 {
     private EntityTexture targetEntity;
     private ScriptState scriptState;
-    public EntityPropertyComponent(ScriptState scriptState) : base("EntityPropertyComponent") 
+    private string path;
+    private bool fileDialogOpen;
+    public EntityPropertyComponent(EntityState entityState, ScriptState scriptState) : base("EntityPropertyComponent") 
     { 
         Active = true; 
         this.scriptState = scriptState;
@@ -28,12 +30,25 @@ public class EntityPropertyComponent : Component
             }
             ImGui.EndMenu();
         }
+        ImGui.InputText("Image Path", ref path, 100);
+        if (ImGui.Button("Browse")) 
+        {
+            fileDialogOpen = true;
+            ImGui.OpenPopup("edit-texture");
+        }
+// TODO Ability to edit the texture
+        FileDialog.OpenFileDialog("edit-texture", ".png", this, ref fileDialogOpen, ref path);
+        if (ImGui.Button("Apply")) 
+        {
+            
+        }
     }
 
-    public void Open(EntityTexture entity) 
+    public void Open(EntityState entity) 
     {
-        targetEntity = entity;
-
+        entity.CurrentTexture = null;
+        targetEntity = entity.CurrentEntity;
+        path = targetEntity.ImagePath;
     }
 
     public void Close() 
