@@ -1,0 +1,18 @@
+{
+	"ProjectName": "PathToProject",
+	"ProjectPath": "D:\Project\MonoGame Projects\Pixxa\test\TestCore.pix",
+	"Version": "1.0.0",
+	"States": [{
+			"EntityState": [{
+					"Name": "Archie",
+					"Size": {
+						"x": 32,
+						"y": 16
+					},
+					"ImagePath": "D:\Project\MonoGame Projects\Pixxa\Content\player_block.png",
+					"WindowOpened": true
+				}
+			]
+		}
+	]
+}

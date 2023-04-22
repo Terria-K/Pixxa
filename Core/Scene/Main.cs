@@ -13,58 +13,56 @@ namespace Pixxa;
 
 public partial class MainScene : Scene
 {
+    public ProjectState ProjectState;
     public EntityState EntityState;
-    public ScriptState ScriptState;
     public RoomState RoomState;
     public TerrainState TerrainState;
     private ImGuiRenderer renderer;
     private RenderTarget2D canvasRT;
     private PixxaCanvas canvas;
-    private Lua luaState;
     private Selected selected;
+    private MouseInput mouseInput;
 
     public ViewWindowComponent ViewWindow;
     public NewFileComponent NewFile;
     public ToolbarComponent Toolbar;
+    public ElementComponent Element;
     public InspectorComponent Inspector;
-    public EntityPropertyComponent EntityProperty;
     public ToolMode CurrentToolMode;
+    public TabMode TabMode;
 
-    public Num.Vector2 ViewportSize;
-    public Num.Vector2 ViewportPos;
     public Action ImGuiCaptured;
 
-    private bool scriptRunning;
 
     public MainScene(ContentManager content, Teuria.Camera camera, ImGuiRenderer renderer) : base(content, camera)
     {
-        luaState = new Lua();
-        luaState.LoadCLRPackage();
-
-        luaState.DoString("function MoveX(entity, move) entity.position.X = entity.position.X + move end");
-        luaState.DoString("function MoveY(entity, move) entity.position.Y = entity.position.Y + move end");
-        LuaBuiltin.RegisterFunctions(luaState);
-
         this.renderer = renderer;
-        EntityState = new EntityState(renderer);
-        ScriptState = new ScriptState();
-        RoomState = new RoomState();
-        TerrainState = new TerrainState();
-        NewFile = new NewFileComponent();
-        Inspector = new InspectorComponent(renderer, EntityState, RoomState, TerrainState, ScriptState);
-        Toolbar = new ToolbarComponent();
-        Toolbar.ModeChanged = OnToolModeChanged;
-        EntityProperty = new EntityPropertyComponent(EntityState, ScriptState);
-        ViewWindow = new ViewWindowComponent(this);
-        Inspector.Active = true;
+        mouseInput = new MouseInput(Camera);
+        ProjectState = new ProjectState(this, new List<ISaveable>());
+        EntityState = new EntityState(renderer, this);
+        RoomState = new RoomState(this, mouseInput);
+        TerrainState = new TerrainState(this);
+        NewFile = new NewFileComponent(ProjectState);
+        Element = new ElementComponent(renderer, EntityState, RoomState, TerrainState) {
+            OnTab = t => TabMode = t,
+        };
+        Toolbar = new ToolbarComponent() {
+            ModeChanged = OnToolModeChanged
+        };
+        Inspector = new InspectorComponent();
+        Element.OnEntitySelected += Inspector.OnEntitySelected;
+        ViewWindow = new ViewWindowComponent(this, mouseInput);
+        Element.Active = true;
         canvasRT = new RenderTarget2D(Pixxa.Instance.GraphicsDevice, Pixxa.Width, Pixxa.Height);
         canvas = new PixxaCanvas(Pixxa.Width, Pixxa.Height, EntityState, canvasRT);
         Camera = camera;
+        ProjectState.AddState(EntityState);
     }
 
     public override void Hierarchy(GraphicsDevice device)
     {
         Add(canvas);
+
         ImGuiIOPtr ioPtr = ImGui.GetIO();
         ioPtr.ConfigFlags |= ImGuiConfigFlags.DockingEnable;
         ImGuiCaptured = () => 
@@ -72,21 +70,44 @@ public partial class MainScene : Scene
             if (!ioPtr.WantCaptureMouse)
                 ImGui.SetWindowFocus(null);
             
-            // Prevent entity being placed outside of a viewport
-            if (ViewWindow.IsItemHovered && EntityState.CurrentEntity != null) 
+            if (!ioPtr.WantCaptureKeyboard) 
             {
-                if (selected != null) 
+                if (TInput.Keyboard.Pressed(Keys.LeftControl) && TInput.Keyboard.JustPressed(Keys.S)) 
                 {
-                    selected?.InputHovering(CurrentToolMode, luaState);
-                    return;
+                    ProjectState.Save();
                 }
-                selected = new Selected(EntityState);
-                Add(selected);
+            }
+            
+            // Prevent entity being placed outside of a viewport
+            if (ViewWindow.IsItemHovered) 
+            {
+                foreach (var room in RoomState.Rooms) 
+                {
+                    room.InputHovering(CurrentToolMode);
+                    room.CouldPlaceTile();
+                }
+
+                if (EntityState.CurrentEntity != null) 
+                {
+                    if (selected != null) 
+                    {
+                        selected.InputHovering(TabMode, CurrentToolMode);
+                        return;
+                    }
+                    selected = new Selected(EntityState, mouseInput);
+                    Add(selected);
+                }
             }
         };
         
 
         base.Hierarchy(device);
+    }
+
+    public override void BeforeRender()
+    {
+        RoomState.DrawMaps(Canvas.SpriteBatch);
+        base.BeforeRender();
     }
 
     public override void AfterRender()
@@ -146,13 +167,15 @@ public partial class MainScene : Scene
         CurrentToolMode = tool;
     }
 
-    private bool openEntityProperty;
     private void DrawLayout() 
     {
         // {
         //     ImGui.Text(string.Format("Application average {0:F3} ms/frame ({1:F1} FPS)", 
         //         1000f / ImGui.GetIO().Framerate, ImGui.GetIO().Framerate));
         // }
+        {
+            ImGui.ShowDemoWindow();
+        }
 
         ImGui.BeginMainMenuBar();
         if (ImGui.BeginMenu("File")) 
@@ -161,9 +184,20 @@ public partial class MainScene : Scene
                 NewFile.Active = true;
             
 
-            ImGui.MenuItem("Open");
-            ImGui.MenuItem("Save");
-            ImGui.MenuItem("Save As");
+            if (ImGui.MenuItem("Open")) 
+            {
+                var pixxaProject = global::Pixxa.ProjectState.Open(this);
+                if (pixxaProject != null)
+                    ProjectState = pixxaProject;
+            }
+            if (ImGui.MenuItem("Save")) 
+            {
+                ProjectState.Save();
+            }
+            if (ImGui.MenuItem("Save As")) 
+            {
+                ProjectState.SaveAs();
+            }
             if (ImGui.MenuItem("Exit")) 
             {
                 Exit();
@@ -175,53 +209,25 @@ public partial class MainScene : Scene
 
         if (ImGui.BeginMenu("Edit")) 
         {
-            if (ImGui.MenuItem("Edit Entity Properties", EntityState.CurrentEntity != null)) 
+            if (ImGui.MenuItem("Refresh")) 
             {
-                if (EntityState.CurrentEntity == null)
-                    return;
-                EntityProperty.Open(EntityState);
-                openEntityProperty = true;
+                ChangeScene(new MainScene(Content, Camera, renderer));
             }
             ImGui.EndMenu();
         }
 
         if (ImGui.BeginMenu("Run")) 
         {
-            if (ImGui.MenuItem("Play Scripts", !scriptRunning)) 
-            {
-                scriptRunning = true;
-                foreach (var entity in Entities) 
-                {
-                    if (entity is CharacterEntity characterEntity)
-                        characterEntity.RunScript();
-                }    
-            }
-            if (ImGui.MenuItem("Stop Scripts", scriptRunning)) 
-            {
-                scriptRunning = false;
-                foreach (var entity in Entities) 
-                {
-                    if (entity is CharacterEntity characterEntity)
-                        characterEntity.StopScript();
-                }    
-            }
+            ImGui.Text("Not yet :(");
             ImGui.EndMenu();
         }
 
         ImGui.EndMainMenuBar();
 
-        if (openEntityProperty)
-            ImGui.OpenPopup("Entity Property");
-
-
-        if (ImGui.BeginPopupModal("Entity Property", ref openEntityProperty)) 
-        {
-            EntityProperty.DoLayout();
-            ImGui.EndPopup();
-        }
 
         Toolbar.DoLayout();
         Inspector.DoLayout();
+        Element.DoLayout();
         if (NewFile.Active)
             ImGui.OpenPopup("New File");
         if (ImGui.BeginPopupModal("New File", ref NewFile.Active)) 
@@ -238,7 +244,7 @@ public partial class MainScene : Scene
             | ImGuiWindowFlags.NoDocking;
         
         ImGui.SetNextWindowPos(System.Numerics.Vector2.Zero, ImGuiCond.Always);
-        ImGui.SetNextWindowSize(new System.Numerics.Vector2(1024, 640));
+        ImGui.SetNextWindowSize(new System.Numerics.Vector2(GameApp.Instance.WindowScreen.Width, GameApp.Instance.WindowScreen.Height));
         ImGui.PushStyleVar(ImGuiStyleVar.WindowRounding, 0.0f);
         ImGui.PushStyleVar(ImGuiStyleVar.WindowBorderSize, 0.0f);
         windowFlags |= ImGuiWindowFlags.NoTitleBar 

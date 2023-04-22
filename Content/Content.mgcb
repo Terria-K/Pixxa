@@ -13,3 +13,9 @@
 
 #---------------------------------- Content ---------------------------------#
 
+#begin images/tile/tile.json
+/copy:images/tile/tile.json
+
+#begin images/tile/tile.png
+/copy:images/tile/tile.png
+

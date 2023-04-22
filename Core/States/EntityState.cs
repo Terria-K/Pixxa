@@ -5,20 +5,22 @@ using Num = System.Numerics;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Teuria;
+using TeuJson;
+using TeuJson.Attributes;
 
 namespace Pixxa;
 
 
-public class EntityState 
+public class EntityState : State, ISaveable
 {
-    public List<EntityTexture> TexturesPtr = new List<EntityTexture>();
+    public List<PixxaEntity> TexturesPtr = new List<PixxaEntity>();
     public SpriteTexture CurrentTexture;
-    public EntityTexture CurrentEntity;
+    public PixxaEntity CurrentEntity;
     private ImGuiRenderer renderer;
     private static BlendState _blendColor;
     private static BlendState _blendAlpha;
 
-    public EntityState(ImGuiRenderer renderer) 
+    public EntityState(ImGuiRenderer renderer, MainScene scene) : base(scene)
     {
         this.renderer = renderer;
     }
@@ -26,11 +28,11 @@ public class EntityState
     public void AddTexture(string name, ReadOnlySpan<char> path) 
     {
         var texture = LoadTextureStream(GameApp.Instance.GraphicsDevice, path);
-        var texturePtr = new EntityTexture() 
+        var texturePtr = new PixxaEntity() 
         {
             Name = name,
             ImagePath = new string(path),
-            Size = new Num.Vector2(texture.Width, texture.Height),
+            Size = new Point(texture.Width, texture.Height),
             Texture = new SpriteTexture(texture),
             TexturePtr = renderer.BindTexture(texture)
         };
@@ -40,15 +42,28 @@ public class EntityState
     public void AddTexture(string name, ReadOnlySpan<char> path, Point pos, Point size) 
     {
         var texture = LoadTextureStream(GameApp.Instance.GraphicsDevice, path);
-        var texturePtr = new EntityTexture() 
+        var texturePtr = new PixxaEntity() 
         {
             Name = name,
             ImagePath = new string(path),
-            Size = new Num.Vector2(size.X, size.Y),
+            Size = new Point(size.X, size.Y),
             Texture = new SpriteTexture(texture, new Point(pos.X, pos.Y), size.X, size.Y),
             TexturePtr = renderer.BindTexture(texture)
         };
         TexturesPtr.Add(texturePtr);
+    }
+
+    public void RemoveEntity(PixxaEntity entity) 
+    {
+        if (entity == null)
+            return;
+        if (entity == CurrentEntity) 
+        {
+            CurrentEntity = null;
+            CurrentTexture = null;
+        }
+        TexturesPtr.Remove(entity);
+        entity.OnRemoved?.Invoke();
     }
 
     public void SetTexture(SpriteTexture texture2D) 
@@ -56,7 +71,7 @@ public class EntityState
         CurrentTexture = texture2D;
     }
 
-    public void SetEntity(EntityTexture entity) 
+    public void SetEntity(PixxaEntity entity) 
     {
         CurrentEntity = entity;
     }
@@ -127,15 +142,68 @@ public class EntityState
             texture.Texture.Unload();
         }
     }
+
+    public JsonValue Save()
+    {
+        var jsonArray = new JsonArray();
+        foreach (var entity in TexturesPtr) 
+        {
+            jsonArray.Add(JsonConvert.Serialize(entity));
+        }
+        var jsonObj = new JsonObject 
+        {
+            ["EntityState"] = jsonArray
+        };
+        return jsonObj;
+    }
 }
 
-public class EntityTexture 
+public partial class PixxaEntity : ISerialize, IDeserialize
 {
-    public string Name;
-    public Num.Vector2 Size;
-    public IntPtr TexturePtr;
+    [TeuObject]
+    public string Name = string.Empty;
+    [Custom("CustomConverters")]
+    [TeuObject]
+    public Point Size;
+    [TeuObject]
     public string ImagePath;
+    [TeuObject]
+    public bool WindowOpened;
+    public IntPtr TexturePtr;
     public SpriteTexture Texture;
     public string ScriptName = "No Script attached";
     public string ScriptPath;
+    public Action OnRemoved;
+
+    public string FutureName = string.Empty;
+
+    public PixxaEntity() 
+    {
+        FutureName = Name;
+    }
+
+    public void ApplyChanges() 
+    {
+        Name = FutureName;
+    }
+}
+
+public static class CustomConverters
+{
+    public static Point ToPoint(this JsonValue value) 
+    {
+        if (value.IsNull)
+            return default;
+        
+        return new Point(value["x"], value["y"]);
+    }
+
+    public static JsonValue ToJson(this Point point) 
+    {
+        return new JsonObject 
+        {
+            ["x"] = point.X,
+            ["y"] = point.Y
+        };
+    }
 }

@@ -9,9 +9,11 @@ public class Selected : Entity
 {
     public Sprite Sprite;
     private EntityState state;
+    private MouseInput mouseInput;
 
-    public Selected(EntityState state) 
+    public Selected(EntityState state, MouseInput mouseInput) 
     {
+        this.mouseInput = mouseInput;
         this.state = state;
         Tags = 1;
     }
@@ -30,32 +32,21 @@ public class Selected : Entity
         base.EnterScene(scene, content);
     }
 
-    public void InputHovering(ToolMode toolMode, Lua luaState) 
+    public void InputHovering(TabMode tabMode, ToolMode toolMode) 
     {
+        if (tabMode != TabMode.Entity)
+            return;
         if (state.CurrentTexture != null) 
         {
-            var mouseState = Mouse.GetState();
-            var scene = Scene.SceneAs<MainScene>();
-            float currentX = mouseState.X - scene.ViewportPos.X;
-            float currentY = mouseState.Y - scene.ViewportPos.Y;
-
-            var mousePosX = (currentX / (float)scene.ViewportSize.X) * Pixxa.Width;
-            var mousePosY = (currentY / (float)scene.ViewportSize.Y) * Pixxa.Height;
-
-            var mousePos = new Vector2(mousePosX, mousePosY);
-
-            var snappedPosition = Vector2.Transform(
-                new Vector2(mousePos.X, mousePos.Y), 
-                Matrix.Invert(Scene.Camera.Transform)
-            )
-            .Snapped(Vector2.One * 8);
+            var snappedPosition = mouseInput.GetCanvasMousePosition()
+                .Snapped(Vector2.One * 8);
                 
             Position = snappedPosition;
 
             if (TInput.Mouse.JustLeftClicked()
             && toolMode == ToolMode.PencilMode) 
             {
-                Spawn(Position, luaState);
+                Spawn(Position);
             }
             if (Sprite.Texture != state.CurrentTexture) 
             {
@@ -64,9 +55,9 @@ public class Selected : Entity
         }
     }
 
-    public void Spawn(Vector2 pos, Lua lua) 
+    public void Spawn(Vector2 pos) 
     {
-        var characterEntity = new CharacterEntity(pos, state.CurrentEntity, lua);
+        var characterEntity = new CharacterEntity(mouseInput, pos, state.CurrentEntity);
         Scene.Add(characterEntity);
     }
 }

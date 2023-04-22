@@ -1,7 +1,5 @@
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using Microsoft.Xna.Framework.Input;
-using NLua;
 using Teuria;
 
 namespace Pixxa;
@@ -9,35 +7,26 @@ namespace Pixxa;
 public class CharacterEntity : Entity, ICollidableEntity 
 {
     private Sprite sprite;
-    private Lua lua;
-    private LuaTable entity;
-    private EntityTexture data;
-    private Vector2 LastPosition;
-    private float LastRotation;
-    private Vector2 LastScale;
-    private Color LastModulate;
-    private int LastTags;
+    private PixxaEntity data;
+    private MouseInput mouseInput;
     private Shape shape;
     private PhysicsBody body;
     public Shape Collider => shape;
     public PhysicsComponent PhysicsComponent => body;
     public bool Hovered;
-    public bool LuaActive;
     public Rectangle Size 
     {
         get 
         {
-            var rectangle = new Rectangle((int)Position.X, (int)Position.Y, (int)data.Size.X, (int)data.Size.Y);
+            var rectangle = new Rectangle((int)Position.X, (int)Position.Y, data.Size.X, data.Size.Y);
             return rectangle;
         }
     }
 
 
-    // TODO Add Lua Script here
-
-    public CharacterEntity(Vector2 position, EntityTexture entity, Lua lua) 
+    public CharacterEntity(MouseInput mouseInput, Vector2 position, PixxaEntity entity) 
     {
-        this.lua = lua;
+        this.mouseInput = mouseInput;
         Depth = 1;
         Position = position;
         if (entity.Texture != null) 
@@ -47,59 +36,25 @@ public class CharacterEntity : Entity, ICollidableEntity
         }
 
         data = entity;
-    }
-
-    public void RunScript() 
-    {
-        if (data.ScriptPath == null) return;
-        LuaActive = true;
-        entity = (LuaTable)lua.LoadFile(data.ScriptPath).Call()[0];
-        entity["main"] = this;
-        entity["position"] = LastPosition = Position;
-        entity["rotation"] = LastRotation = Rotation;
-        entity["scale"] = LastScale = Scale;
-        entity["color"] = LastModulate = Modulate;
-        entity["tag"] = LastTags = Tags;
-        var updateFunc = (LuaFunction)entity["ready"];
-        updateFunc?.Call();
-    }
-
-    public void StopScript() 
-    {
-        if (data.ScriptPath == null) return;
-        LuaActive = false;
-        entity = null;
-        Position = LastPosition;
-        Rotation = LastRotation;
-        Scale = LastScale;
-        Modulate = LastModulate;
-        Tags = LastTags;
+        data.OnRemoved += () => Scene.Remove(this);
     }
 
     public override void Update()
     {
-        if (LuaActive) 
-        {
-            var updateFunc = (LuaFunction)entity["update"];
-            updateFunc?.Call(Time.Delta);
+        var snappedPosition = mouseInput.GetCanvasMousePosition()
+            .Snapped(Vector2.One * 8);
 
-            Position = (Vector2)entity["position"];
-            Rotation = (float)(double)entity["rotation"];
-            Scale = (Vector2)entity["scale"];
-            Modulate = (Color)entity["color"];
-            Collider.Tags = Tags = (int)(long)entity["tag"];
-        }
-
-        var mouseState = Mouse.GetState();
-
-        var snappedPosition = Vector2.Transform(
-            new Vector2(mouseState.X - Pixxa.Width/2, 
-            (mouseState.Y - Pixxa.Height/2) + 150), Matrix.Invert(
-                Scene.Camera.Transform)).Snapped(Vector2.One * 8);
         if (Size.Contains(snappedPosition)) 
+        {
             Hovered = true;
+        }
         else    
             Hovered = false;
+        
+        if (Hovered && TInput.Mouse.JustRightClicked()) 
+        {
+            Scene.Remove(this);
+        }
         
             
         base.Update();

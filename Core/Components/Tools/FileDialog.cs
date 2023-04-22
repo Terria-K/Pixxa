@@ -6,7 +6,6 @@ namespace Pixxa;
 
 public static class FileDialog 
 {
-    
     public static void OpenFileDialog(string id, string filter, object obj, ref bool condition, ref string path) 
     {
         if (ImGui.BeginPopupModal(id, ref condition, ImGuiWindowFlags.NoTitleBar)) 

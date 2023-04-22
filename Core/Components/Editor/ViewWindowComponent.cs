@@ -5,10 +5,12 @@ namespace Pixxa;
 
 public class ViewWindowComponent : Component
 {
+    private MouseInput mouseInput;
     private MainScene main;
     public bool IsItemHovered;
-    public ViewWindowComponent(MainScene main) : base("ViewWindow")
+    public ViewWindowComponent(MainScene main, MouseInput mouseInput) : base("ViewWindow")
     {
+        this.mouseInput = mouseInput;
         this.main = main;
         Active = true;
     }
@@ -30,8 +32,8 @@ public class ViewWindowComponent : Component
         ImGui.Image(texID, windowSize);
         IsItemHovered = ImGui.IsItemHovered();
         
-        main.ViewportPos = topLeft;
-        main.ViewportSize = windowSize;
+        mouseInput.ViewportPos = topLeft;
+        mouseInput.ViewportSize = windowSize;
 
         ImGui.End();
     }
